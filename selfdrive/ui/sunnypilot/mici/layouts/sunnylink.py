@@ -91,17 +91,41 @@ class SunnylinkLayoutMici(NavScroller):
       ui_state.params.put_bool("SunnylinkEnabled", False)
       gui_app.pop_widget()
 
-    if state and not sl_consent and not sl_enabled:
-      sl_terms_dlg = SunnylinkConsentPage(on_accept=sl_terms_accepted, on_decline=sl_terms_declined)
-      gui_app.push_widget(sl_terms_dlg)
+    if state and not sl_enabled:
+      def _on_ban_warning_confirmed():
+        if not sl_consent:
+          sl_terms_dlg = SunnylinkConsentPage(on_accept=sl_terms_accepted, on_decline=sl_terms_declined)
+          gui_app.push_widget(sl_terms_dlg)
+        else:
+          ui_state.params.put_bool("SunnylinkEnabled", True)
+          ui_state.update_params()
+
+      dlg = BigConfirmationDialogV2(
+        tr("WARNING: Enabling sunnylink may lead to a ban from comma/sunnylink services."),
+        "icons_mici/settings/device/update.png",
+        red=True,
+        confirm_callback=_on_ban_warning_confirmed
+      )
+      gui_app.push_widget(dlg)
     else:
       ui_state.params.put_bool("SunnylinkEnabled", state)
-
-    ui_state.update_params()
+      ui_state.update_params()
 
   @staticmethod
   def _sunnylink_uploader_callback(state: bool):
-    ui_state.params.put_bool("EnableSunnylinkUploader", state)
+    if state:
+      def _on_confirm():
+        ui_state.params.put_bool("EnableSunnylinkUploader", True)
+
+      dlg = BigConfirmationDialogV2(
+        tr("WARNING: Enabling the uploader may lead to a ban from comma/sunnylink services."),
+        "icons_mici/settings/device/update.png",
+        red=True,
+        confirm_callback=_on_confirm
+      )
+      gui_app.push_widget(dlg)
+    else:
+      ui_state.params.put_bool("EnableSunnylinkUploader", False)
 
   def _handle_backup_restore_btn(self, restore: bool = False):
     lbl = tr("slide to restore") if restore else tr("slide to backup")
