@@ -3,6 +3,7 @@ import math
 import numpy as np
 
 import cereal.messaging as messaging
+from cereal import log
 from opendbc.car.interfaces import ACCEL_MIN, ACCEL_MAX
 from openpilot.common.constants import CV
 from openpilot.common.filter_simple import FirstOrderFilter
@@ -65,6 +66,21 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     self.v_desired_trajectory = np.zeros(CONTROL_N)
     self.a_desired_trajectory = np.zeros(CONTROL_N)
     self.j_desired_trajectory = np.zeros(CONTROL_N)
+
+  @staticmethod
+  def _is_lane_change_without_blindspot(sm) -> bool:
+    """Returns True when a lane change is in progress and no blindspot is detected in that direction."""
+    meta = sm['modelV2'].meta
+    lc_state = meta.laneChangeState
+    if lc_state not in (log.LaneChangeState.preLaneChange, log.LaneChangeState.laneChangeStarting):
+      return False
+    lc_dir = meta.laneChangeDirection
+    cs = sm['carState']
+    blindspot_in_direction = (
+      (lc_dir == log.LaneChangeDirection.left and cs.leftBlindspot) or
+      (lc_dir == log.LaneChangeDirection.right and cs.rightBlindspot)
+    )
+    return not blindspot_in_direction
 
   @staticmethod
   def parse_model(model_msg):
@@ -138,7 +154,8 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
 
     self.mpc.set_weights(prev_accel_constraint, personality=sm['selfdriveState'].personality)
     self.mpc.set_cur_state(self.v_desired_filter.x, self.a_desired)
-    self.mpc.update(sm['radarState'], v_cruise, personality=sm['selfdriveState'].personality)
+    self.mpc.update(sm['radarState'], v_cruise, personality=sm['selfdriveState'].personality,
+                    lane_change_active=self._is_lane_change_without_blindspot(sm))
 
     self.v_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.v_solution)
     self.a_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.a_solution)
