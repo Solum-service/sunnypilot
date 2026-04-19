@@ -94,12 +94,14 @@ class DeviceLayoutSP(DeviceLayout):
     )
     self._reg_and_training.action_item.right_button.set_button_style(ButtonStyle.NORMAL)
 
+    # LUDICROUS-PILOT PRIVACY PATCH: Onroad Uploads button removed, only Reset Settings remains
     self._onroad_uploads_and_reset_settings = dual_button_item_sp(
-      left_text=lambda: tr("Onroad Uploads"),
-      left_callback=self._toggle_onroad_uploads,
-      right_text=lambda: tr("Reset Settings"),
-      right_callback=self._reset_settings
+      left_text=lambda: tr("Reset Settings"),
+      left_callback=self._reset_settings,
+      right_text="",
+      right_callback=None,
     )
+    self._onroad_uploads_and_reset_settings.action_item.right_button.set_visible(False)
 
     self._driver_monitoring_mode = multiple_button_item_sp(
       title=lambda: tr("Driver Monitoring"),
@@ -271,13 +273,11 @@ class DeviceLayoutSP(DeviceLayout):
     # Quiet Mode button
     self._quiet_mode_and_dcam.action_item.left_button.set_button_style(ButtonStyle.PRIMARY if ui_state.params.get_bool("QuietMode") else ButtonStyle.NORMAL)
 
-    # Onroad Uploads
-    self._onroad_uploads_and_reset_settings.action_item.left_button.set_button_style(
-      ButtonStyle.PRIMARY if ui_state.params.get_bool("OnroadUploads") else ButtonStyle.NORMAL
-    )
+    # LUDICROUS-PILOT PRIVACY PATCH: OnroadUploads button removed, force param off
+    ui_state.params.put_bool("OnroadUploads", False)
 
     # Offroad only buttons
     self._quiet_mode_and_dcam.action_item.right_button.set_enabled(ui_state.is_offroad())
     self._reg_and_training.action_item.left_button.set_enabled(ui_state.is_offroad())
     self._reg_and_training.action_item.right_button.set_enabled(ui_state.is_offroad())
-    self._onroad_uploads_and_reset_settings.action_item.right_button.set_enabled(ui_state.is_offroad())
+    self._onroad_uploads_and_reset_settings.action_item.left_button.set_enabled(ui_state.is_offroad())
