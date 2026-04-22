@@ -21,15 +21,23 @@ EventName = log.OnroadEvent.EventName
 # ******************************************************************************************
 
 class DRIVER_MONITOR_SETTINGS:
-  def __init__(self, device_type):
+  def __init__(self, device_type, dm_mode=0):
     self._DT_DMON = DT_DMON
     # ref (page15-16): https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:42018X1947&rid=2
-    self._AWARENESS_TIME = 30. # passive wheeltouch total timeout
-    self._AWARENESS_PRE_TIME_TILL_TERMINAL = 15.
-    self._AWARENESS_PROMPT_TIME_TILL_TERMINAL = 6.
-    self._DISTRACTED_TIME = 11. # active monitoring total timeout
-    self._DISTRACTED_PRE_TIME_TILL_TERMINAL = 8.
-    self._DISTRACTED_PROMPT_TIME_TILL_TERMINAL = 6.
+    if dm_mode == 2:  # Extended
+      self._AWARENESS_TIME = 60.
+      self._AWARENESS_PRE_TIME_TILL_TERMINAL = 45.
+      self._AWARENESS_PROMPT_TIME_TILL_TERMINAL = 15.
+      self._DISTRACTED_TIME = 300.
+      self._DISTRACTED_PRE_TIME_TILL_TERMINAL = 270.
+      self._DISTRACTED_PROMPT_TIME_TILL_TERMINAL = 255.
+    else:  # Standard (0) or Off (1, still uses standard timings — events are skipped)
+      self._AWARENESS_TIME = 30. # passive wheeltouch total timeout
+      self._AWARENESS_PRE_TIME_TILL_TERMINAL = 15.
+      self._AWARENESS_PROMPT_TIME_TILL_TERMINAL = 6.
+      self._DISTRACTED_TIME = 11. # active monitoring total timeout
+      self._DISTRACTED_PRE_TIME_TILL_TERMINAL = 8.
+      self._DISTRACTED_PROMPT_TIME_TILL_TERMINAL = 6.
 
     self._FACE_THRESHOLD = 0.7
     self._EYE_THRESHOLD = 0.65
@@ -139,9 +147,10 @@ def face_orientation_from_net(angles_desc, pos_desc, rpy_calib):
 
 
 class DriverMonitoring:
-  def __init__(self, rhd_saved=False, settings=None, always_on=False):
+  def __init__(self, rhd_saved=False, settings=None, always_on=False, dm_mode=0):
     # init policy settings
-    self.settings = settings if settings is not None else DRIVER_MONITOR_SETTINGS(device_type=HARDWARE.get_device_type())
+    self.dm_mode = dm_mode
+    self.settings = settings if settings is not None else DRIVER_MONITOR_SETTINGS(device_type=HARDWARE.get_device_type(), dm_mode=dm_mode)
 
     # init driver status
     wheelpos_filter_raw_priors = (self.settings._WHEELPOS_DATA_AVG, self.settings._WHEELPOS_DATA_VAR, 2)
@@ -325,6 +334,9 @@ class DriverMonitoring:
 
   def _update_events(self, driver_engaged, op_engaged, standstill, wrong_gear, car_speed):
     self._reset_events()
+    # Mode 1 = Off: suppress all driver monitoring alerts
+    if self.dm_mode == 1:
+      return
     # Block engaging until ignition cycle after max number or time of distractions
     if self.terminal_alert_cnt >= self.settings._MAX_TERMINAL_ALERTS or \
        self.terminal_time >= self.settings._MAX_TERMINAL_DURATION:

@@ -96,9 +96,19 @@ class DeviceLayoutSP(DeviceLayout):
 
     self._onroad_uploads_and_reset_settings = dual_button_item_sp(
       left_text=lambda: tr("Onroad Uploads"),
-      left_callback=lambda: ui_state.params.put_bool("OnroadUploads", not ui_state.params.get_bool("OnroadUploads")),
+      left_callback=self._toggle_onroad_uploads,
       right_text=lambda: tr("Reset Settings"),
       right_callback=self._reset_settings
+    )
+
+    self._driver_monitoring_mode = multiple_button_item_sp(
+      title=lambda: tr("Driver Monitoring"),
+      description=self.driver_monitoring_description,
+      param="DriverMonitoringMode",
+      buttons=[lambda: tr("Standard"), lambda: tr("Off"), lambda: tr("Extended")],
+      button_width=240,
+      callback=self._on_driver_monitoring_mode_changed,
+      inline=True,
     )
 
     self._power_buttons = dual_button_item_sp(
@@ -126,6 +136,8 @@ class DeviceLayoutSP(DeviceLayout):
       self._quiet_mode_and_dcam,
       self._reg_and_training,
       self._onroad_uploads_and_reset_settings,
+      LineSeparator(height=10),
+      self._driver_monitoring_mode,
       Spacer(10),
       LineSeparator(height=10),
       self._power_buttons,
@@ -143,6 +155,56 @@ class DeviceLayoutSP(DeviceLayout):
     header = tr("Controls state of the device after boot/sleep.")
 
     return f"{header}\n\n{def_str}\n{offrd_str}"
+
+  @staticmethod
+  def driver_monitoring_description() -> str:
+    header = tr("Choose driver monitoring behavior.")
+    standard = tr("Standard: default thresholds (11s active / 30s no face until red alert).")
+    off = tr("Off: suppress all driver monitoring alerts.")
+    extended = tr("Extended: 5 min active / 60s no face until red alert. (requires reboot to take full effect)")
+    return f"{header}\n\n{standard}\n{off}\n{extended}"
+
+  def _on_driver_monitoring_mode_changed(self, new_index: int):
+    if new_index == 0:
+      return  # Standard — no warning needed
+
+    # At callback time, the widget has updated selected_button but the param
+    # write in MultipleButtonActionSP._handle_mouse_release happens AFTER
+    # this callback returns. Read old value from params before that.
+    old_value = int(ui_state.params.get("DriverMonitoringMode", return_default=True) or 0)
+
+    def _on_confirm(result: int):
+      if result == DialogResult.CONFIRM:
+        return
+      # Revert param and widget state
+      ui_state.params.put("DriverMonitoringMode", str(old_value))
+      self._driver_monitoring_mode.action_item.set_selected_button(old_value)
+
+    if new_index == 1:
+      warning = tr("WARNING: Disabling driver monitoring alerts removes a key safety layer and "
+                   "may lead to a ban from comma/sunnylink services. Are you sure?")
+    else:
+      warning = tr("WARNING: Extending driver monitoring thresholds reduces safety margins and "
+                   "may lead to a ban from comma/sunnylink services. Are you sure?")
+
+    gui_app.push_widget(ConfirmDialog(
+      text=warning, confirm_text=tr("Confirm"), callback=_on_confirm
+    ))
+
+  @staticmethod
+  def _toggle_onroad_uploads():
+    currently_enabled = ui_state.params.get_bool("OnroadUploads")
+    if currently_enabled:
+      ui_state.params.put_bool("OnroadUploads", False)
+    else:
+      def _on_confirm(result: int):
+        if result == DialogResult.CONFIRM:
+          ui_state.params.put_bool("OnroadUploads", True)
+
+      gui_app.push_widget(ConfirmDialog(
+        text=tr("WARNING: Enabling uploads may lead to a ban from comma and/or sunnylink services. Are you sure you want to enable Onroad Uploads?"),
+        confirm_text=tr("Enable"), callback=_on_confirm
+      ))
 
   @staticmethod
   def _reset_settings():

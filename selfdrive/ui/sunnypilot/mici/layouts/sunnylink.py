@@ -124,32 +124,41 @@ class SunnylinkLayoutMici(NavScroller):
       dlg.set_back_callback(on_confirm)
       gui_app.push_widget(dlg)
 
-    if state and not sl_consent and not sl_enabled:
-      def sl_terms_accepted():
-        ui_state.params.put("CompletedSunnylinkConsentVersion", sunnylink_consent_version)
-        ui_state.update_params()
-        gui_app.pop_widget()
-        show_warning()
+    if state and not sl_enabled:
+      def _on_ban_warning_confirmed():
+        if not sl_consent:
+          sl_terms_dlg = SunnylinkConsentPage(on_accept=sl_terms_accepted, on_decline=sl_terms_declined)
+          gui_app.push_widget(sl_terms_dlg)
+        else:
+          ui_state.params.put_bool("SunnylinkEnabled", True)
+          ui_state.update_params()
 
-      def sl_terms_declined():
-        ui_state.params.put("CompletedSunnylinkConsentVersion", sunnylink_consent_declined)
-        ui_state.params.put_bool("SunnylinkEnabled", False)
-        self._sunnylink_toggle.set_checked(False)
-        ui_state.update_params()
-        gui_app.pop_widget()
-
-      sl_terms_dlg = SunnylinkConsentPage(on_accept=sl_terms_accepted, on_decline=sl_terms_declined)
-      gui_app.push_widget(sl_terms_dlg)
+      dlg = BigConfirmationDialogV2(
+        tr("WARNING: Enabling sunnylink may lead to a ban from comma/sunnylink services."),
+        "icons_mici/settings/device/update.png",
+        red=True,
+        confirm_callback=_on_ban_warning_confirmed
+      )
+      gui_app.push_widget(dlg)
     else:
-      if state:
-        show_warning()
-      else:
-        ui_state.params.put_bool("SunnylinkEnabled", False)
-        ui_state.update_params()
+      ui_state.params.put_bool("SunnylinkEnabled", state)
+      ui_state.update_params()
 
   @staticmethod
   def _sunnylink_uploader_callback(state: bool):
-    ui_state.params.put_bool("EnableSunnylinkUploader", state)
+    if state:
+      def _on_confirm():
+        ui_state.params.put_bool("EnableSunnylinkUploader", True)
+
+      dlg = BigConfirmationDialogV2(
+        tr("WARNING: Enabling the uploader may lead to a ban from comma/sunnylink services."),
+        "icons_mici/settings/device/update.png",
+        red=True,
+        confirm_callback=_on_confirm
+      )
+      gui_app.push_widget(dlg)
+    else:
+      ui_state.params.put_bool("EnableSunnylinkUploader", False)
 
   def _on_remote_sensitive_toggle(self, state: bool):
     if not state:
